@@ -107,6 +107,20 @@ WRAPPED_METHODS = [
         "method": "stream",
         "span_name": "anthropic.chat",
     },
+    # Beta API async stream methods - these return async context managers (not coroutines),
+    # so they need sync wrappers just like the non-beta AsyncMessages.stream above
+    {
+        "package": "anthropic.resources.beta.messages.messages",
+        "object": "AsyncMessages",
+        "method": "stream",
+        "span_name": "anthropic.chat",
+    },
+    {
+        "package": "anthropic.lib.bedrock._beta_messages",
+        "object": "AsyncMessages",
+        "method": "stream",
+        "span_name": "anthropic.chat",
+    },
 ]
 
 WRAPPED_AMETHODS = [
@@ -129,23 +143,13 @@ WRAPPED_AMETHODS = [
         "method": "create",
         "span_name": "anthropic.chat",
     },
-    {
-        "package": "anthropic.resources.beta.messages.messages",
-        "object": "AsyncMessages",
-        "method": "stream",
-        "span_name": "anthropic.chat",
-    },
+    # Note: AsyncMessages.stream methods are in WRAPPED_METHODS (sync wrapper)
+    # because they return async context managers, not coroutines
     # Beta API async methods (Bedrock SDK)
     {
         "package": "anthropic.lib.bedrock._beta_messages",
         "object": "AsyncMessages",
         "method": "create",
-        "span_name": "anthropic.chat",
-    },
-    {
-        "package": "anthropic.lib.bedrock._beta_messages",
-        "object": "AsyncMessages",
-        "method": "stream",
         "span_name": "anthropic.chat",
     },
 ]
