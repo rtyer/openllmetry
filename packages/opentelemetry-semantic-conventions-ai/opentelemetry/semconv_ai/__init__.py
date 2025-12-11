@@ -85,6 +85,8 @@ class SpanAttributes:
     LLM_REQUEST_REASONING_EFFORT = "gen_ai.request.reasoning_effort"
     LLM_REQUEST_REASONING_SUMMARY = "gen_ai.request.reasoning_summary"
     LLM_RESPONSE_REASONING_EFFORT = "gen_ai.response.reasoning_effort"
+    LLM_REQUEST_THINKING_ENABLED = "gen_ai.request.thinking_enabled"
+    LLM_REQUEST_THINKING_BUDGET_TOKENS = "gen_ai.request.thinking_budget_tokens"
 
     # LLM
     LLM_REQUEST_TYPE = "llm.request.type"

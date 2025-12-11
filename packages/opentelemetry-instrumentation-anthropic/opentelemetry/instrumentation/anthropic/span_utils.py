@@ -90,6 +90,22 @@ async def aset_input_attributes(span, kwargs):
     )
     set_span_attribute(span, SpanAttributes.LLM_IS_STREAMING, kwargs.get("stream"))
 
+    # Capture Claude extended thinking configuration
+    thinking = kwargs.get("thinking")
+    if thinking and isinstance(thinking, dict):
+        thinking_enabled = thinking.get("type") == "enabled"
+        set_span_attribute(span, SpanAttributes.LLM_REQUEST_THINKING_ENABLED, thinking_enabled)
+        budget_tokens = thinking.get("budget_tokens")
+        if budget_tokens is not None:
+            set_span_attribute(span, SpanAttributes.LLM_REQUEST_THINKING_BUDGET_TOKENS, budget_tokens)
+
+    # Capture reasoning effort from output_config (Claude effort beta)
+    output_config = kwargs.get("output_config")
+    if output_config and isinstance(output_config, dict):
+        effort = output_config.get("effort")
+        if effort:
+            set_span_attribute(span, SpanAttributes.LLM_REQUEST_REASONING_EFFORT, effort)
+
     if should_send_prompts():
         if kwargs.get("prompt") is not None:
             set_span_attribute(
