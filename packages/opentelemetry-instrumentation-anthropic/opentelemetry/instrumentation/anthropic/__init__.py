@@ -160,20 +160,40 @@ def is_streaming_response(response):
 
 
 def is_stream_manager(response):
-    """Check if response is a MessageStreamManager or AsyncMessageStreamManager"""
+    """Check if response is a MessageStreamManager, AsyncMessageStreamManager, or beta variants"""
+    stream_manager_classes = []
+
+    # Try to import non-beta stream managers
     try:
         from anthropic.lib.streaming._messages import (
             MessageStreamManager,
             AsyncMessageStreamManager,
         )
-
-        return isinstance(response, (MessageStreamManager, AsyncMessageStreamManager))
+        stream_manager_classes.extend([MessageStreamManager, AsyncMessageStreamManager])
     except ImportError:
-        # Check by class name as fallback
-        return (
-            response.__class__.__name__ == "MessageStreamManager"
-            or response.__class__.__name__ == "AsyncMessageStreamManager"
+        pass
+
+    # Try to import beta stream managers
+    try:
+        from anthropic.lib.streaming._beta_messages import (
+            BetaMessageStreamManager,
+            BetaAsyncMessageStreamManager,
         )
+        stream_manager_classes.extend([BetaMessageStreamManager, BetaAsyncMessageStreamManager])
+    except ImportError:
+        pass
+
+    if stream_manager_classes:
+        return isinstance(response, tuple(stream_manager_classes))
+
+    # Check by class name as fallback
+    class_name = response.__class__.__name__
+    return class_name in (
+        "MessageStreamManager",
+        "AsyncMessageStreamManager",
+        "BetaMessageStreamManager",
+        "BetaAsyncMessageStreamManager",
+    )
 
 
 @dont_throw
@@ -575,7 +595,8 @@ def _wrap(
             kwargs,
         )
     elif is_stream_manager(response):
-        if response.__class__.__name__ == "AsyncMessageStreamManager":
+        # Use async wrapper for both regular and beta async stream managers
+        if response.__class__.__name__ in ("AsyncMessageStreamManager", "BetaAsyncMessageStreamManager"):
             return WrappedAsyncMessageStreamManager(
                 response,
                 span,
@@ -696,7 +717,8 @@ async def _awrap(
             kwargs,
         )
     elif is_stream_manager(response):
-        if response.__class__.__name__ == "AsyncMessageStreamManager":
+        # Use async wrapper for both regular and beta async stream managers
+        if response.__class__.__name__ in ("AsyncMessageStreamManager", "BetaAsyncMessageStreamManager"):
             return WrappedAsyncMessageStreamManager(
                 response,
                 span,
