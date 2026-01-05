@@ -75,9 +75,10 @@ async def aset_input_attributes(span, kwargs):
     from opentelemetry.instrumentation.anthropic import set_span_attribute
 
     set_span_attribute(span, SpanAttributes.LLM_REQUEST_MODEL, kwargs.get("model"))
-    set_span_attribute(
-        span, SpanAttributes.LLM_REQUEST_MAX_TOKENS, kwargs.get("max_tokens_to_sample")
-    )
+    max_tokens = kwargs.get("max_tokens")
+    if max_tokens is None:
+        max_tokens = kwargs.get("max_tokens_to_sample")
+    set_span_attribute(span, SpanAttributes.LLM_REQUEST_MAX_TOKENS, max_tokens)
     set_span_attribute(
         span, SpanAttributes.LLM_REQUEST_TEMPERATURE, kwargs.get("temperature")
     )
@@ -381,15 +382,23 @@ def set_streaming_response_attributes(span, complete_response_events):
 
     index = 0
     tool_call_index = 0
+    text_buffer = ""
     for event in complete_response_events:
         prefix = f"{SpanAttributes.LLM_COMPLETIONS}.{index}"
         set_span_attribute(span, f"{prefix}.finish_reason", event.get("finish_reason"))
-        role = "thinking" if event.get("type") == "thinking" else "assistant"
-        # Thinking is added as a separate completion, so we need to increment the index
         if event.get("type") == "thinking":
+            # Flush any accumulated assistant text before switching completions
+            if text_buffer:
+                set_span_attribute(span, f"{prefix}.content", text_buffer)
+                text_buffer = ""
+            set_span_attribute(span, f"{prefix}.role", "thinking")
+            set_span_attribute(span, f"{prefix}.content", event.get("text"))
+            # Thinking is added as a separate completion
             index += 1
             tool_call_index = 0
-        set_span_attribute(span, f"{prefix}.role", role)
+            continue
+
+        set_span_attribute(span, f"{prefix}.role", "assistant")
         if event.get("type") == "tool_use":
             set_span_attribute(
                 span,
@@ -410,4 +419,8 @@ def set_streaming_response_attributes(span, complete_response_events):
                 )
             tool_call_index += 1
         else:
-            set_span_attribute(span, f"{prefix}.content", event.get("text"))
+            text_buffer += event.get("text") or ""
+
+    if text_buffer:
+        prefix = f"{SpanAttributes.LLM_COMPLETIONS}.{index}"
+        set_span_attribute(span, f"{prefix}.content", text_buffer)
