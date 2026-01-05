@@ -2077,12 +2077,22 @@ def test_anthropic_tools_streaming_legacy(
 
     assert (
         anthropic_span.attributes["gen_ai.completion.0.tool_calls.0.id"]
-    ) == "toolu_0121kXsENLvoDZ72LCuAnCCz"
+    ) == "toolu_014x5X91kx3fvdhpLvwXZWE2"
     assert (
         anthropic_span.attributes["gen_ai.completion.0.tool_calls.0.name"]
-    ) == "get_time"
+    ) == "get_weather"
     assert json.loads(
         anthropic_span.attributes["gen_ai.completion.0.tool_calls.0.arguments"]
+    ) == {"location": "San Francisco, CA", "unit": "celsius"}
+
+    assert (
+        anthropic_span.attributes["gen_ai.completion.0.tool_calls.1.id"]
+    ) == "toolu_0121kXsENLvoDZ72LCuAnCCz"
+    assert (
+        anthropic_span.attributes["gen_ai.completion.0.tool_calls.1.name"]
+    ) == "get_time"
+    assert json.loads(
+        anthropic_span.attributes["gen_ai.completion.0.tool_calls.1.arguments"]
     ) == {"timezone": "America/Los_Angeles"}
 
     assert (

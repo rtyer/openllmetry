@@ -380,6 +380,7 @@ def set_streaming_response_attributes(span, complete_response_events):
         return
 
     index = 0
+    tool_call_index = 0
     for event in complete_response_events:
         prefix = f"{SpanAttributes.LLM_COMPLETIONS}.{index}"
         set_span_attribute(span, f"{prefix}.finish_reason", event.get("finish_reason"))
@@ -387,24 +388,26 @@ def set_streaming_response_attributes(span, complete_response_events):
         # Thinking is added as a separate completion, so we need to increment the index
         if event.get("type") == "thinking":
             index += 1
+            tool_call_index = 0
         set_span_attribute(span, f"{prefix}.role", role)
         if event.get("type") == "tool_use":
             set_span_attribute(
                 span,
-                f"{prefix}.tool_calls.0.id",
+                f"{prefix}.tool_calls.{tool_call_index}.id",
                 event.get("id"),
             )
             set_span_attribute(
                 span,
-                f"{prefix}.tool_calls.0.name",
+                f"{prefix}.tool_calls.{tool_call_index}.name",
                 event.get("name"),
             )
             tool_arguments = event.get("input")
             if tool_arguments is not None:
                 set_span_attribute(
                     span,
-                    f"{prefix}.tool_calls.0.arguments",
+                    f"{prefix}.tool_calls.{tool_call_index}.arguments",
                     tool_arguments,
                 )
+            tool_call_index += 1
         else:
             set_span_attribute(span, f"{prefix}.content", event.get("text"))
