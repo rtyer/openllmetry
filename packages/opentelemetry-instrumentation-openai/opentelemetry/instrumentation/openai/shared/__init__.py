@@ -31,7 +31,15 @@ def _set_span_attribute(span, name, value):
     if value is None or value == "":
         return
 
-    if hasattr(openai, "NOT_GIVEN") and value == openai.NOT_GIVEN:
+    if hasattr(openai, "NOT_GIVEN") and value is openai.NOT_GIVEN:
+        return
+    if hasattr(openai, "not_given") and value is openai.not_given:
+        return
+    if hasattr(openai, "omit") and value is openai.omit:
+        return
+    if hasattr(openai, "Omit") and isinstance(value, openai.Omit):
+        return
+    if hasattr(openai, "NotGiven") and isinstance(value, openai.NotGiven):
         return
 
     span.set_attribute(name, value)
