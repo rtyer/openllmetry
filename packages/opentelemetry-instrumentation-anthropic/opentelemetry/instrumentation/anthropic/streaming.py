@@ -1,4 +1,5 @@
 import logging
+from inspect import isawaitable
 import time
 from typing import Optional
 
@@ -29,11 +30,51 @@ from wrapt import ObjectProxy
 logger = logging.getLogger(__name__)
 
 
+def _merge_usage(complete_response, usage, *, accumulate_output_tokens: bool):
+    if not usage:
+        return
+
+    usage_update = {
+        key: value for key, value in dict(usage).items() if value is not None
+    }
+    if not usage_update:
+        return
+
+    if "usage" in complete_response:
+        if accumulate_output_tokens and "output_tokens" in usage_update:
+            usage_update["output_tokens"] += complete_response["usage"].get(
+                "output_tokens", 0
+            )
+        complete_response["usage"].update(usage_update)
+    else:
+        complete_response["usage"] = usage_update
+
+
+def _merge_final_message(complete_response, final_message):
+    if not final_message:
+        return
+
+    if model := getattr(final_message, "model", None):
+        complete_response["model"] = model
+    if message_id := getattr(final_message, "id", None):
+        complete_response["id"] = message_id
+
+    _merge_usage(
+        complete_response,
+        getattr(final_message, "usage", None),
+        accumulate_output_tokens=False,
+    )
+
+
 @dont_throw
 def _process_response_item(item, complete_response):
     if item.type == "message_start":
         complete_response["model"] = item.message.model
-        complete_response["usage"] = dict(item.message.usage)
+        _merge_usage(
+            complete_response,
+            item.message.usage,
+            accumulate_output_tokens=False,
+        )
         complete_response["id"] = item.message.id
     elif item.type == "content_block_start":
         index = item.index
@@ -56,18 +97,11 @@ def _process_response_item(item, complete_response):
     elif item.type == "message_delta":
         for event in complete_response.get("events", []):
             event["finish_reason"] = item.delta.stop_reason
-        if item.usage:
-            usage_update = {
-                key: value for key, value in dict(item.usage).items() if value is not None
-            }
-            if "usage" in complete_response:
-                if "output_tokens" in usage_update:
-                    usage_update["output_tokens"] += complete_response["usage"].get(
-                        "output_tokens", 0
-                    )
-                complete_response["usage"].update(usage_update)
-            else:
-                complete_response["usage"] = usage_update
+        _merge_usage(
+            complete_response,
+            item.usage,
+            accumulate_output_tokens=True,
+        )
 
 
 def _set_token_usage(
@@ -245,6 +279,13 @@ class AnthropicStream(ObjectProxy):
         if self._instrumentation_completed:
             return
 
+        final_message_getter = getattr(self.__wrapped__, "get_final_message", None)
+        if callable(final_message_getter):
+            try:
+                _merge_final_message(self._complete_response, final_message_getter())
+            except Exception as e:
+                logger.debug("Failed to merge final stream message, error: %s", e)
+
         # This mirrors the logic from build_from_streaming_response
         metric_attributes = shared_metrics_attributes(self._complete_response)
         set_span_attribute(self._span, GEN_AI_RESPONSE_ID, self._complete_response.get("id"))
@@ -376,7 +417,7 @@ class AnthropicAsyncStream(ObjectProxy):
         except StopAsyncIteration:
             # Stream is complete - handle instrumentation
             if not self._instrumentation_completed:
-                self._complete_instrumentation()
+                await self._complete_instrumentation()
             raise
         except Exception as e:
             # Handle errors during streaming
@@ -394,10 +435,20 @@ class AnthropicAsyncStream(ObjectProxy):
             _process_response_item(item, self._complete_response)
             return item
 
-    def _complete_instrumentation(self):
+    async def _complete_instrumentation(self):
         """Complete the instrumentation when stream is fully consumed"""
         if self._instrumentation_completed:
             return
+
+        final_message_getter = getattr(self.__wrapped__, "get_final_message", None)
+        if callable(final_message_getter):
+            try:
+                final_message = final_message_getter()
+                if isawaitable(final_message):
+                    final_message = await final_message
+                _merge_final_message(self._complete_response, final_message)
+            except Exception as e:
+                logger.debug("Failed to merge final async stream message, error: %s", e)
 
         # This mirrors the logic from abuild_from_streaming_response
         metric_attributes = shared_metrics_attributes(self._complete_response)
