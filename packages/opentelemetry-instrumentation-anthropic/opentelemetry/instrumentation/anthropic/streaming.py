@@ -57,16 +57,17 @@ def _process_response_item(item, complete_response):
         for event in complete_response.get("events", []):
             event["finish_reason"] = item.delta.stop_reason
         if item.usage:
+            usage_update = {
+                key: value for key, value in dict(item.usage).items() if value is not None
+            }
             if "usage" in complete_response:
-                item_output_tokens = dict(item.usage).get("output_tokens", 0)
-                existing_output_tokens = complete_response["usage"].get(
-                    "output_tokens", 0
-                )
-                complete_response["usage"]["output_tokens"] = (
-                    item_output_tokens + existing_output_tokens
-                )
+                if "output_tokens" in usage_update:
+                    usage_update["output_tokens"] += complete_response["usage"].get(
+                        "output_tokens", 0
+                    )
+                complete_response["usage"].update(usage_update)
             else:
-                complete_response["usage"] = dict(item.usage)
+                complete_response["usage"] = usage_update
 
 
 def _set_token_usage(
